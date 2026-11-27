@@ -1,0 +1,698 @@
+<!doctype html>
+<!-- ============================================================
+     TOEIC 학습 앱 (앱 본체)
+     ⚠ 버전은 data/list.js 의 APP_VERSION 과 sw.js 의 CACHE 로 관리한다.
+        문제를 추가하든 이 파일을 고치든, 바뀔 때마다 두 값을 같은 날짜-버전으로 올릴 것.
+     문제 데이터는 data/T1.js, data/T2.js … (TEST 별 파일), 목록은 data/list.js
+     ============================================================ -->
+<html lang="ko">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1, viewport-fit=cover, maximum-scale=1">
+<meta name="apple-mobile-web-app-capable" content="yes">
+<meta name="mobile-web-app-capable" content="yes">
+<meta name="apple-mobile-web-app-title" content="TOEIC">
+<meta name="apple-mobile-web-app-status-bar-style" content="default">
+<meta name="theme-color" content="#ffffff">
+<link rel="manifest" href="./manifest.webmanifest">
+<link rel="apple-touch-icon" href="./apple-touch-icon.png">
+<link rel="icon" href="./favicon-32.png">
+<title>TOEIC</title>
+<style>
+:root{
+  --bg:#ffffff; --bg2:#f2f4f6; --line:#e5e8eb; --line2:#d1d6db;
+  --ink:#191f28; --sub:#4e5968; --muted:#8b95a1; --faint:#c3c9d0;
+  --blue:#3182f6; --blue-soft:#e8f3ff; --blue-head:#1b6fd6;
+  --red:#f04452; --red-soft:#ffeeee; --yellow:#ffc94a; --green:#03b26c;
+  --font:-apple-system,BlinkMacSystemFont,"Pretendard","Apple SD Gothic Neo","Malgun Gothic","Segoe UI",Roboto,sans-serif;
+}
+@media (prefers-color-scheme: dark){
+  :root{
+    --bg:#17171c; --bg2:#0e0e12; --line:#2c2c35; --line2:#3a3a45;
+    --ink:#f2f4f6; --sub:#b0b8c1; --muted:#8b95a1; --faint:#4e5968;
+    --blue:#4d96ff; --blue-soft:#1b2a44; --blue-head:#1a4f9c;
+    --red:#ff6b76; --red-soft:#3a1f23; --yellow:#f4c04a; --green:#2fd08d;
+  }
+}
+*{box-sizing:border-box;-webkit-tap-highlight-color:transparent}
+html,body{margin:0;background:var(--bg);color:var(--ink);font-family:var(--font);-webkit-text-size-adjust:100%}
+body{min-height:100vh}
+button{font:inherit;color:inherit;background:none;border:0;padding:0;cursor:pointer}
+#app{max-width:600px;margin:0 auto;min-height:100vh;background:var(--bg);position:relative}
+
+/* 상단 바 */
+.top{position:sticky;top:0;z-index:20;background:var(--bg);padding-top:env(safe-area-inset-top)}
+.top .bar{height:56px;display:flex;align-items:center;justify-content:center;position:relative}
+.top .ttl{font-size:18px;font-weight:700;letter-spacing:-.3px}
+.top .back{position:absolute;left:8px;top:0;height:56px;width:48px;display:grid;place-items:center}
+.top .back svg{width:26px;height:26px}
+.top .act{position:absolute;right:16px;top:0;height:56px;display:flex;align-items:center;font-size:14px;color:var(--muted)}
+.top.blue{background:var(--blue-head);color:#fff}
+.top.blue .act{color:#fff}
+.sub{background:var(--bg2);height:58px;display:flex;align-items:center;justify-content:space-between;padding:0 8px}
+.sub .lbl{flex:1;text-align:center;color:var(--sub);font-size:16px;font-weight:500;letter-spacing:-.2px;white-space:nowrap;overflow:hidden;text-overflow:ellipsis}
+.sub .nav{width:44px;height:44px;display:grid;place-items:center;color:var(--sub)}
+.sub .nav[disabled]{visibility:hidden}
+.sub .nav svg{width:22px;height:22px}
+
+#view{padding:0 0 calc(110px + env(safe-area-inset-bottom))}
+.pad{padding:0 20px}
+
+/* 하단 고정 버튼 */
+.bottom{position:fixed;left:0;right:0;bottom:0;z-index:30;background:var(--bg2);padding:14px 20px calc(14px + env(safe-area-inset-bottom))}
+.bottom .in{max-width:560px;margin:0 auto;display:flex;gap:12px}
+.btn{flex:1;height:56px;border-radius:14px;background:var(--blue);color:#fff;font-size:17px;font-weight:700;display:flex;align-items:center;justify-content:center;gap:6px}
+.btn[disabled]{opacity:.4;cursor:default}
+.btn.ghost{background:var(--bg);color:var(--ink);font-weight:600}
+.btn.ghost svg{width:20px;height:20px}
+
+/* 홈 */
+.hero{padding:22px 20px 6px}
+.hero .date{color:var(--muted);font-size:14px;margin:0 0 4px}
+.hero h1{margin:0;font-size:28px;letter-spacing:-.5px;font-weight:800}
+.today{margin:16px 20px 6px;border-radius:18px;background:var(--blue);color:#fff;padding:20px;display:block;width:calc(100% - 40px);text-align:left}
+.today .k{font-size:13px;opacity:.85}
+.today .t{font-size:20px;font-weight:700;margin:4px 0 12px;letter-spacing:-.3px}
+.today .row{display:flex;align-items:center;justify-content:space-between;font-size:14px}
+.today .go{background:rgba(255,255,255,.2);border-radius:10px;padding:8px 12px;font-weight:700}
+.today .pg{height:6px;border-radius:6px;background:rgba(255,255,255,.25);margin-top:12px;overflow:hidden}
+.today .pg i{display:block;height:100%;background:#fff;border-radius:6px}
+.sh{font-size:13px;font-weight:700;color:var(--muted);padding:26px 20px 8px;letter-spacing:.2px}
+.list{border-top:1px solid var(--line)}
+.li{display:flex;align-items:center;gap:14px;padding:16px 20px;border-bottom:1px solid var(--line);width:100%;text-align:left}
+.li .ic{width:42px;height:42px;border-radius:12px;background:var(--bg2);display:grid;place-items:center;font-size:19px;flex:none}
+.li .ic.p{font-size:13px;font-weight:800;color:var(--blue);background:var(--blue-soft)}
+.li .tx{flex:1;min-width:0}
+.li .tx b{display:block;font-size:16px;font-weight:600;letter-spacing:-.2px}
+.li .tx span{display:block;font-size:13px;color:var(--muted);margin-top:3px}
+.li .rt{font-size:13px;color:var(--muted);flex:none}
+.li .rt.done{color:var(--blue);font-weight:700}
+.li .chev{color:var(--faint);flex:none}
+.li .chev svg{width:18px;height:18px}
+
+/* 문제 */
+.qbox{padding:30px 20px 0}
+.qmeta{font-size:13px;color:var(--muted);margin:0 0 8px}
+.stem{font-size:21px;font-weight:700;line-height:1.42;letter-spacing:-.3px;margin:0;word-break:keep-all;overflow-wrap:anywhere}
+.stem .no{position:relative;display:inline-block;margin-right:6px}
+.stem .no::after{content:"";position:absolute;left:50%;top:50%;width:46px;height:46px;transform:translate(-50%,-50%);border-radius:50%;pointer-events:none}
+.stem .no.ok::after{border:3px solid var(--blue)}
+.stem .no.ng::before{content:"";position:absolute;left:50%;top:50%;width:52px;height:3px;background:var(--red);transform:translate(-50%,-50%) rotate(-55deg);border-radius:3px}
+.blank{display:inline-block;min-width:64px;border-bottom:2px solid var(--ink);margin:0 4px;transform:translateY(-4px)}
+.ans{font-size:19px;font-weight:700;margin:26px 0 0}
+.ans em{font-style:normal;color:var(--blue)}
+.ans em.ng{color:var(--red)}
+.choices{display:grid;gap:14px;margin:26px 0 0}
+.ch{display:flex;gap:10px;align-items:flex-start;text-align:left;border:1.5px solid var(--line);border-radius:12px;padding:18px 18px;font-size:18px;line-height:1.4;background:var(--bg);transition:background .12s,border-color .12s}
+.ch .l{flex:none}
+.ch.sel{background:var(--blue-soft);border-color:#a9cdfb;color:var(--blue)}
+.ch.right{background:var(--blue-soft);border-color:var(--blue);color:var(--blue);font-weight:700}
+.ch.wrong{background:var(--red-soft);border-color:var(--red);color:var(--red)}
+.ch.dim{color:var(--faint)}
+.done .ch{cursor:default}
+
+/* 지문 */
+.passage{margin:22px 20px 0;border:1px solid var(--line);border-radius:14px;background:var(--bg2);padding:16px 16px 18px}
+.passage .pt{font-size:12.5px;font-weight:700;color:var(--muted);margin:0 0 10px}
+.passage .px{font-size:15.5px;line-height:1.7;white-space:pre-wrap;word-break:keep-all;overflow-wrap:anywhere}
+.ptitle{margin:18px 20px 0;font-size:13px;font-weight:700;color:var(--muted)}
+.passage+.passage{margin-top:12px}
+.gtabs{position:sticky;top:calc(56px + env(safe-area-inset-top));z-index:15;display:flex;background:var(--bg);border-bottom:1px solid var(--line)}
+.gtabs button{flex:1;height:50px;font-size:16px;font-weight:600;color:var(--muted);border-bottom:3px solid transparent}
+.gtabs button.on{color:var(--blue);border-bottom-color:var(--blue)}
+.gtabs button small{font-size:13px;font-weight:600;margin-left:4px}
+.ctx{margin:14px 0 0;background:var(--bg2);border-radius:10px;padding:12px 14px;font-size:15px;line-height:1.65;color:var(--sub);word-break:keep-all;overflow-wrap:anywhere}
+.golink{display:block;margin:22px 20px 0;height:52px;width:calc(100% - 40px);border-radius:14px;border:1.5px solid var(--blue);color:var(--blue);font-size:16px;font-weight:700}
+.pb{display:inline-block;min-width:52px;text-align:center;border-bottom:2px solid var(--sub);font-size:12px;font-weight:700;color:var(--muted);padding:0 4px;margin:0 2px}
+.pb.on{color:var(--blue);border-color:var(--blue);background:var(--blue-soft);border-radius:4px 4px 0 0}
+
+/* 해설 */
+.gap{height:16px;background:var(--bg2);margin:30px 0 0}
+.sec{padding:26px 20px;border-bottom:1px solid var(--line);margin:0 20px;padding-left:0;padding-right:0}
+.sec:last-child{border-bottom:0}
+.sec h3{margin:0 0 14px;font-size:19px;font-weight:700}
+.sec p{margin:0;font-size:17px;line-height:1.62;color:var(--ink);white-space:pre-wrap;word-break:keep-all;overflow-wrap:anywhere}
+.sec .tag{display:block;margin:0 0 4px;font-size:17px}
+details.pk{margin-top:14px;border-radius:12px;background:var(--bg2);padding:12px 14px}
+details.pk summary{font-size:14px;color:var(--sub);font-weight:600;cursor:pointer}
+details.pk p{font-size:15px;margin-top:10px}
+.voc{display:flex;align-items:center;gap:10px;padding:4px 0}
+.voc .w{font-size:17px}
+.voc .m{font-size:17px;color:var(--ink)}
+.voc .bm{margin-left:auto;flex:none}
+.mini{width:30px;height:30px;border-radius:50%;background:var(--line);display:grid;place-items:center;color:#fff}
+.mini svg{width:14px;height:14px}
+.mini.on{background:var(--yellow)}
+
+/* 단어장 */
+.tabs{display:flex;align-items:center;gap:18px;padding:18px 20px 6px;white-space:nowrap}
+.tabs .tb{font-size:17px;color:var(--muted);font-weight:500}
+.tabs .tb.on{color:var(--blue);font-weight:600}
+.tabs .bmonly{margin-left:auto;display:flex;align-items:center;gap:6px;font-size:14px;color:var(--sub);white-space:nowrap}
+.tabs .bmonly .mini{width:28px;height:28px}
+@media (max-width:360px){.tabs{gap:12px;padding-left:16px;padding-right:16px}.tabs .tb{font-size:15.5px}.tabs .bmonly{font-size:13px}}
+.info{margin:12px 20px 4px;background:var(--bg2);border-radius:12px;padding:14px 16px;font-size:14px;color:var(--muted);line-height:1.6}
+.wrow{display:flex;align-items:center;gap:18px;padding:20px 20px;border-bottom:1px solid var(--line)}
+.wrow .big{width:52px;height:52px;border-radius:50%;background:var(--line);display:grid;place-items:center;color:#fff;flex:none}
+.wrow .big svg{width:20px;height:20px}
+.wrow .big.on{background:var(--yellow)}
+.wrow .body{flex:1;min-width:0}
+.wrow .p1{font-size:21px;font-weight:600;letter-spacing:-.2px;word-break:keep-all}
+.wrow .p1.k{font-size:19px;font-weight:700}
+.wrow .p2{font-size:17px;color:var(--sub);margin-top:8px;word-break:keep-all}
+.wrow .hid{margin-top:10px;height:48px;border:1.5px dashed var(--line2);border-radius:8px;background:var(--bg2);display:grid;place-items:center;color:var(--faint);font-size:18px;width:100%}
+.empty{padding:60px 24px;text-align:center;color:var(--muted);font-size:15px;line-height:1.7}
+
+/* 통계 */
+.kpis{display:grid;grid-template-columns:repeat(3,1fr);gap:10px;padding:18px 20px 0}
+.kpi{background:var(--bg2);border-radius:14px;padding:14px 12px;text-align:center}
+.kpi b{display:block;font-size:22px;font-weight:800;letter-spacing:-.4px}
+.kpi span{display:block;font-size:12.5px;color:var(--muted);margin-top:4px}
+.prow{padding:14px 20px;border-bottom:1px solid var(--line)}
+.prow .h{display:flex;justify-content:space-between;font-size:15px}
+.prow .h span{color:var(--muted);font-size:13.5px}
+.bar2{height:8px;border-radius:8px;background:var(--bg2);overflow:hidden;margin-top:9px}
+.bar2 i{display:block;height:100%;border-radius:8px;background:var(--blue)}
+.week{display:flex;gap:8px;align-items:flex-end;height:96px;padding:14px 20px 0}
+.week .d{flex:1;display:flex;flex-direction:column;align-items:center;gap:6px;height:100%;justify-content:flex-end}
+.week .d i{display:block;width:100%;max-width:30px;border-radius:6px 6px 2px 2px;background:var(--blue);min-height:3px}
+.week .d i.z{background:var(--line)}
+.week .d span{font-size:11.5px;color:var(--muted)}
+.opt{display:flex;gap:8px;padding:6px 20px 0}
+.opt button{flex:1;height:44px;border-radius:12px;border:1.5px solid var(--line);font-size:15px;font-weight:600;color:var(--sub)}
+.opt button[data-p]{height:58px;line-height:1.3}
+.opt button.on{border-color:var(--blue);color:var(--blue);background:var(--blue-soft)}
+.note{padding:10px 20px;font-size:13px;color:var(--muted);line-height:1.6}
+.danger{color:var(--red)!important}
+
+/* 확인 모달 */
+.modal{position:fixed;inset:0;z-index:50;background:rgba(0,0,0,.28);display:none;align-items:center;justify-content:center;padding:24px;backdrop-filter:blur(2px);-webkit-backdrop-filter:blur(2px)}
+.modal.show{display:flex}
+.modal .box{width:100%;max-width:380px;background:var(--bg);border-radius:28px;padding:30px 22px 22px;text-align:center;box-shadow:0 18px 50px rgba(0,0,0,.22);animation:pop .16s ease-out}
+@keyframes pop{from{transform:scale(.94);opacity:0}to{transform:none;opacity:1}}
+.modal .msg{font-size:18px;font-weight:600;margin:0 0 22px;line-height:1.5}
+.modal .bs{display:flex;gap:10px}
+.modal .bs button{flex:1;height:54px;border-radius:27px;background:var(--bg2);font-size:17px;font-weight:600}
+.modal .bs button.pri{background:var(--blue);color:#fff}
+.toast{position:fixed;left:50%;bottom:calc(100px + env(safe-area-inset-bottom));transform:translateX(-50%);background:rgba(25,31,40,.92);color:#fff;font-size:14px;padding:11px 18px;border-radius:22px;z-index:60;opacity:0;transition:opacity .2s;pointer-events:none;white-space:nowrap}
+.toast.show{opacity:1}
+/* 비밀번호 잠금 */
+.lock{padding:70px 24px 0;text-align:center}
+.lock .ic{font-size:44px}
+.lock h2{margin:14px 0 8px;font-size:22px;letter-spacing:-.3px}
+.lock p{margin:0 0 26px;color:var(--muted);font-size:14.5px;line-height:1.6}
+.lock input{width:100%;height:56px;border-radius:14px;border:1.5px solid var(--line);background:var(--bg2);color:var(--ink);font:inherit;font-size:17px;padding:0 16px;outline:none}
+.lock input:focus{border-color:var(--blue)}
+.lock .err{color:var(--red);font-size:14px;min-height:22px;margin:10px 0 0}
+.lock .btn{width:100%;flex:none;margin-top:8px}
+</style>
+</head>
+<body>
+<div id="app">
+  <header class="top" id="top">
+    <div class="bar">
+      <button class="back" id="back" aria-label="뒤로"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.4" stroke-linecap="round" stroke-linejoin="round"><path d="M15 4l-8 8 8 8"/></svg></button>
+      <div class="ttl" id="ttl">TOEIC</div>
+      <div class="act" id="act"></div>
+    </div>
+  </header>
+  <main id="view"></main>
+</div>
+<div class="bottom" id="bottom" hidden><div class="in" id="bin"></div></div>
+<div class="modal" id="modal"><div class="box"><p class="msg" id="mmsg"></p><div class="bs"><button id="mno">취소</button><button class="pri" id="myes">확인</button></div></div></div>
+<div class="toast" id="toast"></div>
+
+<script src="data/list.js"></script>
+<script>/* data/list.js 의 DATA_FILES 순서대로 TEST 데이터 파일을 불러온다 */
+document.write(DATA_FILES.map(f=>'<script src="data/'+f+'.js?v='+APP_VERSION+'"><\/script>').join(""));</script>
+<script>
+/* 앱 본체: 아래 '비밀번호 잠금' 스크립트가 문제 데이터를 복호화한 뒤 window.__startApp() 으로 실행한다 */
+window.__startApp=function(){
+/* =========================================================================
+   TOEIC 학습 앱 (RC)  —  데일리 학습 · 파트별 풀이 · 오답 노트 · 단어장 · 통계
+   저장: localStorage (키 접두사 "toeic.")  · 로그인/서버 불필요
+   -------------------------------------------------------------------------
+   DATA.bank 문제 스키마 (TOEIC_SPEC.md 참고)
+   { id:"T1-101", test:"TEST 1", part:5, no:101, pid:"지문ID(Part6·7)",
+     stem:"문장 ------- 빈칸", choices:["..","..","..",".."], answer:0(0=A),
+     ko:"해석", type:"해설 유형", exp:"해설", vocab:[["word","뜻"],...] }
+   ========================================================================= */
+/* ---------------- 데이터 조립 ----------------
+   data/Tn.js 가 window.TOEIC_DATA 에 { key, name, passages, questions, words } 를 push 한다.
+   세트(문제 묶음)와 단어장은 여기서 자동으로 만든다:
+   - Part 5: 번호순 10문항씩  /  Part 6·7: 지문(pid)별 묶음, 제목은 passage.kind(편지·광고문…)
+   - 단어장: TEST 별로 문항 vocab + words(추가 단어)를 중복 없이 모음 */
+const DATA=(()=>{
+  const raw=(window.TOEIC_DATA||[]).slice().sort((a,b)=>DATA_FILES.indexOf(a.key)-DATA_FILES.indexOf(b.key));
+  const D={bank:[],passages:{},tests:[]};
+  raw.forEach(t=>{
+    const qs=(t.questions||[]).slice().sort((a,b)=>a.no-b.no);
+    qs.forEach(q=>{q.test=q.test||t.name;});
+    D.bank.push(...qs);Object.assign(D.passages,t.passages||{});
+    const parts={};
+    [5,6,7].forEach(pn=>{
+      const pq=qs.filter(q=>q.part===pn),sets=[];
+      if(pn===5){for(let i=0;i<pq.length;i+=10){const g=pq.slice(i,i+10);
+          sets.push({sub:`${g[0].no}–${g[g.length-1].no}`,ids:g.map(q=>q.id)});}}
+      else{const groups=[];pq.forEach(q=>{const k=q.pid||q.id;let g=groups.find(x=>x.k===k);if(!g)groups.push(g={k,qs:[]});g.qs.push(q);});
+        groups.forEach(g=>{const ps=t.passages?.[g.k];const f=g.qs[0].no,l=g.qs[g.qs.length-1].no;
+          sets.push({sub:`${f===l?f:f+"–"+l}${ps?.kind?" "+ps.kind:""}`,ids:g.qs.map(q=>q.id)});});}
+      sets.forEach((x,i)=>{x.id=`${t.key}-P${pn}-${i+1}`;x.part=pn;x.test=t.name;x.tkey=t.key;});
+      if(sets.length)parts[pn]=sets;
+    });
+    const seen=new Set(),words=[];
+    [...qs.flatMap(q=>q.vocab||[]),...(t.words||[])].forEach(([w,m])=>{const k=w.toLowerCase();if(!seen.has(k)){seen.add(k);words.push([w,m]);}});
+    D.tests.push({key:t.key,name:t.name,ids:qs.map(q=>q.id),parts,words});
+  });
+  return D;
+})();
+const TEST=k=>DATA.tests.find(t=>t.key===k);
+
+/* ---------------- 저장소 ---------------- */
+const LS={
+  get(k,d){try{const v=localStorage.getItem("toeic."+k);return v==null?d:JSON.parse(v);}catch(e){return d;}},
+  set(k,v){try{localStorage.setItem("toeic."+k,JSON.stringify(v));}catch(e){}},
+};
+const Q={};DATA.bank.forEach(q=>Q[q.id]=q);
+const L="ABCD";
+const $=id=>document.getElementById(id);
+const view=$("view"),top_=$("top"),ttl=$("ttl"),act=$("act"),back=$("back"),bottom=$("bottom"),bin=$("bin");
+const IC={
+  l:'<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.2" stroke-linecap="round" stroke-linejoin="round"><path d="M15 5l-7 7 7 7"/></svg>',
+  r:'<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.2" stroke-linecap="round" stroke-linejoin="round"><path d="M9 5l7 7-7 7"/></svg>',
+  bm:'<svg viewBox="0 0 24 24" fill="currentColor"><path d="M6 3h12a1 1 0 0 1 1 1v17l-7-4.5L5 21V4a1 1 0 0 1 1-1z"/></svg>',
+  re:'<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.4" stroke-linecap="round" stroke-linejoin="round"><path d="M4 12a8 8 0 1 0 2.4-5.7"/><path d="M4 4v5h5"/></svg>',
+};
+function esc(s){return String(s??"").replace(/[&<>"]/g,c=>({"&":"&amp;","<":"&lt;",">":"&gt;",'"':"&quot;"}[c]));}
+function today(d=new Date()){const p=n=>String(n).padStart(2,"0");return `${d.getFullYear()}-${p(d.getMonth()+1)}-${p(d.getDate())}`;}
+function korDate(k){const [y,m,d]=k.split("-").map(Number);return `${y}년 ${m}월 ${d}일`;}
+function toast(t){const e=$("toast");e.textContent=t;e.classList.add("show");clearTimeout(e._t);e._t=setTimeout(()=>e.classList.remove("show"),1600);}
+function ask(msg,yes="확인"){return new Promise(res=>{$("mmsg").textContent=msg;$("myes").textContent=yes;const m=$("modal");m.classList.add("show");
+  const done=v=>{m.classList.remove("show");$("myes").onclick=$("mno").onclick=null;res(v);};$("myes").onclick=()=>done(true);$("mno").onclick=()=>done(false);});}
+
+/* ---------------- 화면 이동 ---------------- */
+let stack=[];
+function go(fn){stack.push(fn);fn();}
+function home_(){stack=[];go(home);}
+back.onclick=()=>{if(stack.length>1){stack.pop();stack[stack.length-1]();}};
+function frame(title,{blue=false,actHtml=""}={}){
+  ttl.textContent=title;act.innerHTML=actHtml;top_.classList.toggle("blue",blue);
+  back.style.visibility=stack.length>1?"visible":"hidden";
+  document.querySelector('meta[name=theme-color]').content=blue?"#1b6fd6":getComputedStyle(document.body).backgroundColor;
+  setBottom("");window.scrollTo(0,0);
+}
+function setBottom(html){bin.innerHTML=html;bottom.hidden=!html;}
+
+/* ---------------- 기록(풀이·오답·통계) ---------------- */
+function statOf(id){return LS.get("stats",{})[id]||{seen:0,correct:0};}
+function record(id,pick){
+  const ok=pick===Q[id].answer;
+  const s=LS.get("stats",{});const e=s[id]||{seen:0,correct:0};e.seen++;if(ok)e.correct++;e.last=pick;e.ts=Date.now();s[id]=e;LS.set("stats",s);
+  const lg=LS.get("log",{});const t=today();const d=lg[t]||{n:0,c:0};d.n++;if(ok)d.c++;lg[t]=d;LS.set("log",lg);
+  let w=LS.get("wrong",[]);
+  if(ok)w=w.filter(x=>x!==id);else if(!w.includes(id))w.push(id);
+  LS.set("wrong",w);return ok;
+}
+function ansOf(key){return LS.get("ans",{})[key]||{};}
+function setAns(key,id,v){const a=LS.get("ans",{});a[key]=a[key]||{};if(v==null)delete a[key][id];else a[key][id]=v;LS.set("ans",a);}
+function progress(key,ids){const a=ansOf(key);let n=0,c=0;ids.forEach(id=>{if(a[id]!=null){n++;if(a[id]===Q[id].answer)c++;}});return {n,c};}
+
+/* ---------------- 데일리 학습 ---------------- */
+function dailyCount(){return LS.get("dailyN",5);}
+function dailyIds(date){
+  const all=LS.get("daily",{});
+  if(all[date])return all[date].filter(id=>Q[id]);
+  const ids=randOrder([5],dailyCount());   // 랜덤 풀기와 같은 우선순위
+  all[date]=ids;LS.set("daily",all);return ids;
+}
+function dailySession(date){return {key:"daily:"+date,ids:dailyIds(date),title:"데일리 학습",label:`${korDate(date)} 토익 RC(Part 5)`,i:0};}
+
+/* ---------------- 홈 ---------------- */
+function home(){
+  frame("TOEIC");
+  const t=today(),ds=dailySession(t),dp=progress(ds.key,ds.ids);
+  const wrong=LS.get("wrong",[]).filter(id=>Q[id]),bm=Object.keys(LS.get("bm",{})).length;
+  const st=LS.get("stats",{});const solved=Object.keys(st).filter(k=>Q[k]).length;
+  let h=`<div class="hero"><p class="date">${korDate(t)}</p><h1>오늘도 한 걸음 🔥</h1></div>
+  <button class="today" id="goToday"><div class="k">데일리 학습</div>
+    <div class="t">${korDate(t)} 토익 RC(Part 5)</div>
+    <div class="row"><span>${ds.ids.length}문항 · ${dp.n?`${dp.n}문항 풀이 · 정답 ${dp.c}`:"아직 시작 전"}</span><span class="go">${dp.n>=ds.ids.length?"다시 보기":dp.n?"이어 풀기":"시작하기"} ›</span></div>
+    <div class="pg"><i style="width:${ds.ids.length?dp.n/ds.ids.length*100:0}%"></i></div></button>
+  <div class="sh">문제 풀기</div><div class="list">
+    <button class="li" id="goRand"><div class="ic">🎲</div><div class="tx"><b>랜덤 풀기</b><span>파트 선택 · 안 푼/틀린 문제 먼저, 맞힌 문제는 맨 뒤로</span></div>${randOpen()?`<div class="rt done">이어 풀기</div>`:""}<div class="chev">${IC.r}</div></button>`;
+  h+=DATA.tests.map(t=>{const p=progress2(t.ids);
+    return `<button class="li" data-test="${t.key}"><div class="ic">📁</div><div class="tx"><b>${esc(t.name)}</b><span>${t.ids.length}문항 · Part ${Object.keys(t.parts).join("·")}</span></div>
+      <div class="rt ${p.n===t.ids.length?"done":""}">${p.n?`${p.n}/${t.ids.length}`:""}</div><div class="chev">${IC.r}</div></button>`;}).join("");
+  h+=`</div><div class="sh">단어장</div><div class="list">`;
+  const bmAll=LS.get("bm",{});
+  h+=DATA.tests.map(t=>{const n=t.words.filter(([w])=>bmAll[w.toLowerCase()]).length;
+    return `<button class="li" data-voc="${t.key}"><div class="ic">📘</div><div class="tx"><b>${esc(t.name)} 단어장</b><span>${t.words.length}단어${n?` · 북마크 ${n}`:""}</span></div><div class="chev">${IC.r}</div></button>`;}).join("");
+  h+=`
+    <button class="li" id="goMy"><div class="ic">⭐</div><div class="tx"><b>나만의 단어장</b><span>${bm?`북마크 ${bm}단어`:"북마크한 단어가 여기에 모여요"}</span></div><div class="chev">${IC.r}</div></button>
+  </div><div class="sh">기록</div><div class="list">
+    <button class="li" id="goDaily"><div class="ic">📅</div><div class="tx"><b>지난 데일리 학습</b><span>날짜별 기록 다시 보기</span></div><div class="chev">${IC.r}</div></button>
+    <button class="li" id="goWrong"><div class="ic">📝</div><div class="tx"><b>오답 노트</b><span>${wrong.length?`${wrong.length}문항 · 맞히면 자동으로 빠져요`:"틀린 문제가 자동으로 모여요"}</span></div><div class="chev">${IC.r}</div></button>
+    <button class="li" id="goStats"><div class="ic">📊</div><div class="tx"><b>학습 통계</b><span>${solved?`${solved}/${DATA.bank.length}문항 학습`:"문제를 풀면 기록이 쌓여요"}</span></div><div class="chev">${IC.r}</div></button>
+    <button class="li" id="goSet"><div class="ic">⚙️</div><div class="tx"><b>설정 · 백업</b><span>데일리 문항 수 · 기록 내보내기/불러오기</span></div><div class="chev">${IC.r}</div></button>
+  </div>`;
+  view.innerHTML=h;
+  $("goToday").onclick=()=>go(()=>quiz(dailySession(t)));
+  view.querySelectorAll("[data-test]").forEach(b=>b.onclick=()=>go(()=>testView(b.dataset.test)));
+  view.querySelectorAll("[data-voc]").forEach(b=>b.onclick=()=>go(()=>words(b.dataset.voc)));
+  $("goMy").onclick=()=>go(()=>words("my"));
+  $("goDaily").onclick=()=>go(dailyList);$("goWrong").onclick=()=>go(wrongNote);
+  $("goStats").onclick=()=>go(stats);$("goSet").onclick=()=>go(settings);
+  $("goRand").onclick=()=>go(randSetup);
+}
+/* ---------------- 랜덤 풀기 ----------------
+   우선순위: [0] 안 푼 문제 + 틀린 문제(마지막 풀이가 오답)  → 무작위로 섞어 먼저
+             [1] 맞힌 문제(마지막 풀이가 정답) → 풀이 횟수 적은 순 → 오래전에 푼 순
+   Part 6·7은 지문 단위로 묶어서 출제(지문 안 문항 중 가장 급한 문항 기준으로 순위). */
+function qTier(id,st){const e=st[id];if(!e||!e.seen)return {t:0,k:"new"};if(e.last!==Q[id].answer)return {t:0,k:"wrong"};return {t:1,k:"ok",seen:e.seen,ts:e.ts||0};}
+function randPool(parts){
+  const st=LS.get("stats",{}),units={};
+  DATA.bank.filter(q=>parts.includes(q.part)).forEach(q=>{const u=q.pid||q.id;(units[u]=units[u]||[]).push(q.id);});
+  return Object.values(units).map(ids=>{const ts=ids.map(id=>qTier(id,st));
+    const t=Math.min(...ts.map(x=>x.t));const ok=ts.filter(x=>x.t===1);
+    return {ids,t,seen:t?Math.min(...ok.map(x=>x.seen)):0,ts:t?Math.min(...ok.map(x=>x.ts)):0,r:Math.random()};});
+}
+function randOrder(parts,size){
+  const u=randPool(parts).sort((a,b)=>a.t-b.t||(a.t?(a.seen-b.seen||a.ts-b.ts):0)||a.r-b.r);
+  const out=[];for(const x of u){if(size!=="all"&&out.length>=size)break;out.push(...x.ids);}return out;
+}
+function randOpen(){const r=LS.get("randS",null);if(!r||!r.ids?.length)return null;const a=ansOf("rand");return r.ids.some(id=>a[id]==null)?r:null;}
+function randSession(r){return {key:"rand",ids:r.ids,title:"랜덤 풀기",label:`랜덤 풀기 · Part ${r.parts.join("·")} (${r.ids.length}문항)`,i:firstUnsolved("rand",r.ids)};}
+function randSetup(){
+  frame("랜덤 풀기");
+  let parts=LS.get("randParts",[5]),size=LS.get("randSize",10);
+  const draw=()=>{
+    const st=LS.get("stats",{});let n=0,w=0,o=0;
+    DATA.bank.filter(q=>parts.includes(q.part)).forEach(q=>{const t=qTier(q.id,st);t.k==="new"?n++:t.k==="wrong"?w++:o++;});
+    const tot=n+w+o,open=randOpen();
+    view.innerHTML=`<div class="sh">출제 파트 (여러 개 선택 가능)</div>
+      <div class="opt">${[5,6,7].map(p=>{const c=DATA.bank.filter(q=>q.part===p).length;return `<button data-p="${p}" class="${parts.includes(p)?"on":""}">Part ${p}<br><small style="font-weight:500;opacity:.75">${c}문항</small></button>`;}).join("")}</div>
+      <div class="sh">문항 수</div>
+      <div class="opt">${[10,20,"all"].map(v=>`<button data-s="${v}" class="${v===size?"on":""}">${v==="all"?"전체":v+"문항"}</button>`).join("")}</div>
+      <div class="sh">출제 순서</div>
+      <div class="kpis" style="padding-top:4px"><div class="kpi"><b>${n}</b><span>안 푼 문제</span></div><div class="kpi"><b style="color:var(--red)">${w}</b><span>틀린 문제</span></div><div class="kpi"><b style="color:var(--blue)">${o}</b><span>맞힌 문제</span></div></div>
+      <p class="note">① 안 푼 문제와 틀린 문제를 무작위로 먼저 → ② 맞힌 문제는 맨 뒤로(덜 풀어 본 문제부터).<br>Part 6·7은 지문 단위로 함께 나옵니다.${size==="all"?"":` 문항 수는 지문 단위로 맞추느라 조금 넘을 수 있어요.`}</p>
+      ${open?`<div class="list" style="margin-top:8px"><button class="li" id="resume"><div class="ic">⏯️</div><div class="tx"><b>진행 중인 랜덤 풀기 이어서</b><span>Part ${open.parts.join("·")} · ${progress("rand",open.ids).n}/${open.ids.length}문항 풀이</span></div><div class="chev">${IC.r}</div></button></div>`:""}`;
+    setBottom(`<button class="btn" id="start" ${tot?"":"disabled"}>${open?"새로 ":""}랜덤 풀기 시작</button>`);
+    view.querySelectorAll("[data-p]").forEach(b=>b.onclick=()=>{const p=+b.dataset.p;
+      if(parts.includes(p)){if(parts.length===1)return toast("한 개 이상 선택하세요");parts=parts.filter(x=>x!==p);}else parts=[...parts,p].sort();
+      LS.set("randParts",parts);draw();});
+    view.querySelectorAll("[data-s]").forEach(b=>b.onclick=()=>{size=b.dataset.s==="all"?"all":+b.dataset.s;LS.set("randSize",size);draw();});
+    if($("resume"))$("resume").onclick=()=>{const S=randSession(open);go(()=>quiz(S));};
+    $("start").onclick=()=>{const ids=randOrder(parts,size);if(!ids.length)return;
+      const a=LS.get("ans",{});delete a.rand;LS.set("ans",a);const r={parts,ids,at:Date.now()};LS.set("randS",r);
+      const S=randSession(r);go(()=>quiz(S));};
+  };
+  draw();
+}
+/* 문항별 풀이 여부(세트와 관계없이 한 번이라도 푼 문항) */
+function progress2(ids){const st=LS.get("stats",{});let n=0,c=0;ids.forEach(id=>{const e=st[id];if(e&&e.seen){n++;if(e.last===Q[id].answer)c++;}});return {n,c};}
+function testView(tk){
+  const t=TEST(tk);frame(t.name);
+  view.innerHTML=`<p class="note">파트를 고르세요. 숫자는 한 번이라도 풀어 본 문항 수입니다.</p><div class="list">`+Object.entries(t.parts).map(([pn,sets])=>{
+    const ids=sets.flatMap(x=>x.ids),p=progress2(ids);
+    return `<button class="li" data-p="${pn}"><div class="ic p">P${pn}</div><div class="tx"><b>Part ${pn}</b><span>${ids.length}문항 · ${sets.length}세트${pn==="5"?"":" (지문별)"}</span></div>
+      <div class="rt ${p.n===ids.length?"done":""}">${p.n?`${p.n}/${ids.length}`:""}</div><div class="chev">${IC.r}</div></button>`;}).join("")+`</div>`;
+  view.querySelectorAll("[data-p]").forEach(b=>b.onclick=()=>go(()=>partView(tk,+b.dataset.p)));
+}
+function partView(tk,pn){
+  const t=TEST(tk),sets=t.parts[pn];frame(`${t.name} · Part ${pn}`);
+  view.innerHTML=`<div class="list">`+sets.map((x,i)=>{const p=progress("set:"+x.id,x.ids);const done=p.n===x.ids.length;
+    return `<button class="li" data-i="${i}"><div class="ic p">P${pn}</div><div class="tx"><b>${esc(x.sub)}</b><span>${x.ids.length}문항</span></div>
+      <div class="rt ${done?"done":""}">${p.n?(done?`${p.c}/${x.ids.length}`:`${p.n}/${x.ids.length}`):""}</div><div class="chev">${IC.r}</div></button>`;}).join("")+`</div>`;
+  view.querySelectorAll("[data-i]").forEach(b=>b.onclick=()=>{const x=sets[+b.dataset.i];
+    go(()=>quiz({key:"set:"+x.id,ids:x.ids,title:"문제 풀기",label:`${t.name} · Part ${pn} (${x.sub})`,i:firstUnsolved("set:"+x.id,x.ids)}));});
+}
+function firstUnsolved(key,ids){const a=ansOf(key);const i=ids.findIndex(id=>a[id]==null);return i<0?0:i;}
+
+/* ---------------- 문제 풀이 ---------------- */
+/* ---------------- Part 6·7 지문 단위 풀이 ----------------
+   [지문 | 문제] 탭(상단 고정, 탭별 스크롤 위치 기억). 지문은 texts 배열이면 지문 1·2·3 카드로.
+   문제 탭: 전 문항 선택 → 한 번에 제출 → 문항별 채점 → 해석(지문 1회+질문별)·해설·어휘 */
+function blanks(t,on){return esc(t).replace(/\[(\d{3})\]/g,(m,n)=>`<span class="pb ${+n===on?"on":""}">${n}</span>`);}
+function passageHtml(pas,on){const parts=pas.texts||[{text:pas.text}];
+  return parts.map((t,i)=>`<div class="passage">${parts.length>1?`<p class="pt">지문 ${i+1}${t.kind?" · "+esc(t.kind):""}</p>`:""}<div class="px">${blanks(t.text,on)}</div></div>`).join("");}
+function ctxSentence(pas,n){const t=(pas.texts||[{text:pas.text}]).map(x=>x.text).join("\n");const m=`[${n}]`,i=t.indexOf(m);if(i<0)return "";
+  let a=i;while(a>0&&!/[.!?\n]/.test(t[a-1]))a--;let b=i+m.length;while(b<t.length&&!/[.!?\n]/.test(t[b]))b++;
+  if(!t.slice(a,i).trim()&&a>1){let a2=a-1;while(a2>0&&!/[.!?\n]/.test(t[a2-1]))a2--;a=a2;}   // 문장 삽입형: 앞 문장도 함께
+  let c=t.slice(a,Math.min(b+1,t.length)).trim();if(c.endsWith(m)){let b2=b+1;while(b2<t.length&&!/[.!?\n]/.test(t[b2]))b2++;c=t.slice(a,Math.min(b2+1,t.length)).trim();}
+  return c.length>320?c.slice(0,320)+"…":c;}
+function groupAt(ids,i){const pid=Q[ids[i]].pid;let a=i,b=i;while(a>0&&Q[ids[a-1]].pid===pid)a--;while(b<ids.length-1&&Q[ids[b+1]].pid===pid)b++;return [a,b];}
+function quizGroup(S){
+  const ids=S.ids,[ga,gb]=groupAt(ids,S.i),gids=ids.slice(ga,gb+1),qs=gids.map(x=>Q[x]);
+  const A=ansOf(S.key),done=gids.every(x=>A[x]!=null);
+  if(S._g!==ga){S._g=ga;S._picks={};S._tab=done?"q":"p";S._sy={p:0,q:0};}
+  frame(S.title);
+  const pas=DATA.passages[qs[0].pid],part=qs[0].part,np=(pas.texts||[1]).length;
+  const nos=qs.length>1?`${qs[0].no}–${qs[qs.length-1].no}번`:`${qs[0].no}번`;
+  const picked=gids.filter(x=>S._picks[x]!=null).length;
+  let h=`<div class="sub"><button class="nav" id="pv" ${ga===0?"disabled":""}>${IC.l}</button>
+    <div class="lbl">${esc(S.label)}</div><button class="nav" id="nx" ${gb===ids.length-1?"disabled":""}>${IC.r}</button></div>
+    <div class="gtabs"><button data-t="p" class="${S._tab==="p"?"on":""}">지문${np>1?`<small>(${np})</small>`:""}</button>
+      <button data-t="q" class="${S._tab==="q"?"on":""}">문제<small>${done?"채점 완료":`${picked}/${gids.length}`}</small></button></div>`;
+  if(S._tab==="p"){
+    h+=`<p class="ptitle">${esc(pas.title)}</p>`+passageHtml(pas,0);
+    if(done)h+=`<details class="pk" style="margin:16px 20px 0"><summary>지문 해석 보기</summary><p>${esc(pas.ko)}</p></details>`;
+    h+=`<button class="golink" id="goQ">${done?"채점 결과 보기":"문제 풀러 가기"} →</button>`;
+  }else{
+    h+=`<p class="qmeta" style="padding:18px 20px 0;margin:0">${esc(qs[0].test)} · Part ${part} · ${nos} · ${qs.length}문항${done?"":" — 모두 고른 뒤 한 번에 제출"}</p>`;
+    qs.forEach(q=>{const a=A[q.id];const stem=q.stem.replace(/^\(\d+\)\s*/,"");
+      h+=`<div class="qbox ${done?"done":""}" style="padding-top:22px"><p class="stem" style="font-size:18.5px"><span class="no ${done?(a===q.answer?"ok":"ng"):""}">${q.no}.</span> ${esc(stem)}</p>`;
+      if(part===6){const c=ctxSentence(pas,q.no);if(c)h+=`<div class="ctx">${blanks(c,q.no)}</div>`;}
+      if(done)h+=`<p class="ans" style="margin-top:14px">정답 <em>(${L[q.answer]})</em>${a!==q.answer?` <span style="font-size:15px;color:var(--muted);font-weight:500">· 내 답 <em class="ng">(${L[a]})</em></span>`:""}</p>`;
+      h+=`<div class="choices" style="margin-top:14px;gap:10px">`+q.choices.map((c,k)=>{let cls="ch";
+        if(done)cls+=k===q.answer?" right":(k===a?" wrong":" dim");else if(S._picks[q.id]===k)cls+=" sel";
+        return `<button class="${cls}" style="padding:14px 16px;font-size:16.5px" data-q="${q.id}" data-k="${k}" ${done?"disabled":""}><span class="l">(${L[k]})</span><span>${esc(c)}</span></button>`;}).join("")+`</div></div>`;});
+    if(done){
+      const bm=LS.get("bm",{}),seen=new Set(),voc=[];qs.forEach(q=>q.vocab.forEach(([w,m])=>{if(!seen.has(w.toLowerCase())){seen.add(w.toLowerCase());voc.push([w,m]);}}));
+      h+=`<div class="gap"></div>
+        <div class="sec"><h3>해석</h3><p>${esc(pas.ko)}</p>
+          ${qs.map(q=>`<p style="margin-top:16px"><b>${q.no}.</b> ${esc(q.ko)}</p>`).join("")}</div>
+        <div class="sec"><h3>해설</h3>${qs.map((q,i)=>`<p${i?' style="margin-top:18px"':""}><span class="tag"><b>${q.no}.</b> [${esc(q.type)}]</span>${esc(q.exp)}</p>`).join("")}</div>
+        <div class="sec"><h3>어휘</h3>${voc.map(([w,m])=>`<div class="voc"><span class="w">${esc(w)}</span><span class="m">${esc(m)}</span>
+          <button class="bm mini ${bm[w.toLowerCase()]?"on":""}" data-w="${esc(w)}" data-m="${esc(m)}" aria-label="북마크">${IC.bm}</button></div>`).join("")}</div>`;
+    }
+  }
+  view.innerHTML=h;window.scrollTo(0,S._sy[S._tab]||0);
+  const tab=t=>{S._sy[S._tab]=window.scrollY;S._tab=t;quizGroup(S);};
+  view.querySelectorAll(".gtabs [data-t]").forEach(b=>b.onclick=()=>{if(b.dataset.t!==S._tab)tab(b.dataset.t);});
+  if($("goQ"))$("goQ").onclick=()=>tab("q");
+  $("pv").onclick=()=>{S.i=ga-1;S._pick=null;quiz(S);};
+  $("nx").onclick=()=>{S.i=gb+1;S._pick=null;quiz(S);};
+  if(!done){
+    const all=()=>gids.every(x=>S._picks[x]!=null),lab=()=>all()?"정답 제출":`정답 제출 (${gids.filter(x=>S._picks[x]!=null).length}/${gids.length})`;
+    view.querySelectorAll(".ch").forEach(b=>b.onclick=()=>{const qid=b.dataset.q;S._picks[qid]=+b.dataset.k;
+      view.querySelectorAll(`.ch[data-q="${qid}"]`).forEach(x=>x.classList.toggle("sel",+x.dataset.k===S._picks[qid]));
+      $("submit").disabled=!all();$("submit").textContent=lab();
+      const sm=view.querySelector('.gtabs [data-t="q"] small');if(sm)sm.textContent=`${gids.filter(x=>S._picks[x]!=null).length}/${gids.length}`;});
+    setBottom(`<button class="btn" id="submit" ${all()?"":"disabled"}>${lab()}</button>`);
+    $("submit").onclick=async()=>{if(!all()){toast("모든 문항을 골라 주세요");return;}
+      if(!(await ask(`${gids.length}문항의 정답을 제출하시겠습니까?`,"제출")))return;
+      gids.forEach(x=>{record(x,S._picks[x]);setAns(S.key,x,S._picks[x]);});S._picks={};S._tab="q";S._sy={p:S._sy.p,q:0};quizGroup(S);};
+  }else{
+    const last=gb===ids.length-1;
+    setBottom(`<button class="btn ghost" id="retry">${IC.re}다시 풀기</button><button class="btn" id="next">${last?"목록으로":"다음 문제"}</button>`);
+    $("retry").onclick=()=>{gids.forEach(x=>setAns(S.key,x,null));S._picks={};S._tab="p";S._sy={p:0,q:0};quizGroup(S);};
+    $("next").onclick=()=>{if(last){back.onclick();}else{S.i=gb+1;S._pick=null;quiz(S);}};
+    view.querySelectorAll(".voc .bm").forEach(b=>b.onclick=()=>{const on=toggleBm(b.dataset.w,b.dataset.m);b.classList.toggle("on",on);toast(on?"나만의 단어장에 저장했어요":"북마크를 해제했어요");});
+  }
+}
+function quiz(S){
+  if(S._pick===undefined)S._pick=null;
+  const ids=S.ids;if(!ids.length){frame(S.title);view.innerHTML=`<div class="empty">풀 문제가 없습니다.</div>`;return;}
+  if(S.i>=ids.length)S.i=ids.length-1;
+  const id=ids[S.i],q=Q[id],a=ansOf(S.key)[id],done=a!=null;
+  if((q.part===6||q.part===7)&&q.pid)return quizGroup(S);   // Part 6·7: 지문 단위 일괄 풀이
+  frame(S.title);
+  const pas=q.pid?DATA.passages[q.pid]:null;
+  const stemHtml=esc(q.stem).replace(/-{3,}/g,'<span class="blank"></span>');
+  let h=`<div class="sub"><button class="nav" id="pv" ${S.i===0?"disabled":""}>${IC.l}</button>
+    <div class="lbl">${esc(S.label)}</div><button class="nav" id="nx" ${S.i===ids.length-1?"disabled":""}>${IC.r}</button></div>`;
+  if(pas){
+    h+=`<p class="ptitle">${esc(pas.title)}</p>`+passageHtml(pas,q.no);
+  }
+  const st=statOf(id);
+  h+=`<div class="qbox ${done?"done":""}"><p class="qmeta">${esc(q.test)} · Part ${q.part} · ${q.no}번${st.seen?` · 지금까지 ${st.seen}번 풀이`:""}</p>
+    <p class="stem"><span class="no ${done?(a===q.answer?"ok":"ng"):""}">${S.i+1}.</span>${stemHtml}</p>`;
+  if(done)h+=`<p class="ans">정답 <em>(${L[q.answer]})</em>${a!==q.answer?` <span style="font-size:15px;color:var(--muted);font-weight:500">· 내 답 <em class="ng">(${L[a]})</em></span>`:""}</p>`;
+  h+=`<div class="choices">`+q.choices.map((c,k)=>{
+    let cls="ch";
+    if(done)cls+=k===q.answer?" right":(k===a?" wrong":" dim");else if(S._pick===k)cls+=" sel";
+    return `<button class="${cls}" data-k="${k}" ${done?"disabled":""}><span class="l">(${L[k]})</span><span>${esc(c)}</span></button>`;}).join("")+`</div></div>`;
+  if(done){
+    const bm=LS.get("bm",{});
+    h+=`<div class="gap"></div>
+      <div class="sec"><h3>해석</h3><p>${esc(q.ko)}</p>${pas?`<details class="pk"><summary>지문 전체 해석 보기</summary><p>${esc(pas.ko)}</p></details>`:""}</div>
+      <div class="sec"><h3>해설</h3><p><span class="tag">[${esc(q.type)}]</span>${esc(q.exp)}</p></div>
+      <div class="sec"><h3>어휘</h3>${q.vocab.map(([w,m])=>`<div class="voc"><span class="w">${esc(w)}</span><span class="m">${esc(m)}</span>
+        <button class="bm mini ${bm[w.toLowerCase()]?"on":""}" data-w="${esc(w)}" data-m="${esc(m)}" aria-label="북마크">${IC.bm}</button></div>`).join("")}</div>`;
+  }
+  view.innerHTML=h;
+  $("pv").onclick=()=>{S.i--;S._pick=null;quiz(S);};
+  $("nx").onclick=()=>{S.i++;S._pick=null;quiz(S);};
+  if(!done){
+    view.querySelectorAll(".ch").forEach(b=>b.onclick=()=>{S._pick=+b.dataset.k;
+      view.querySelectorAll(".ch").forEach(x=>x.classList.toggle("sel",+x.dataset.k===S._pick));$("submit").disabled=false;});
+    setBottom(`<button class="btn" id="submit" ${S._pick==null?"disabled":""}>정답 제출</button>`);
+    $("submit").onclick=async()=>{if(S._pick==null)return;
+      if(!(await ask("정답을 제출하시겠습니까?","제출")))return;
+      record(id,S._pick);setAns(S.key,id,S._pick);S._pick=null;quiz(S);};
+  }else{
+    const last=S.i===ids.length-1;
+    setBottom(`<button class="btn ghost" id="retry">${IC.re}다시 풀기</button><button class="btn" id="next">${last?"목록으로":"다음 문제"}</button>`);
+    $("retry").onclick=()=>{setAns(S.key,id,null);S._pick=null;quiz(S);};
+    $("next").onclick=()=>{if(last){back.onclick();}else{S.i++;S._pick=null;quiz(S);}};
+    view.querySelectorAll(".voc .bm").forEach(b=>b.onclick=()=>{const on=toggleBm(b.dataset.w,b.dataset.m);b.classList.toggle("on",on);toast(on?"나만의 단어장에 저장했어요":"북마크를 해제했어요");});
+  }
+}
+
+/* ---------------- 지난 데일리 ---------------- */
+function dailyList(){
+  frame("데일리 학습");
+  const all=LS.get("daily",{});dailyIds(today());
+  const dates=Object.keys(LS.get("daily",{})).sort().reverse();
+  view.innerHTML=`<div class="list">`+dates.map(d=>{const ids=all[d]||dailyIds(d);const p=progress("daily:"+d,ids);
+    return `<button class="li" data-d="${d}"><div class="ic">📅</div><div class="tx"><b>${korDate(d)} 토익 RC(Part 5)</b><span>${ids.length}문항${d===today()?" · 오늘":""}</span></div>
+      <div class="rt ${p.n===ids.length?"done":""}">${p.n?`${p.c}/${p.n}`:"미풀이"}</div><div class="chev">${IC.r}</div></button>`;}).join("")+`</div>`;
+  view.querySelectorAll("[data-d]").forEach(b=>b.onclick=()=>go(()=>quiz(dailySession(b.dataset.d))));
+}
+
+/* ---------------- 오답 노트 ---------------- */
+function wrongNote(){
+  frame("오답 노트");
+  const w=LS.get("wrong",[]).filter(id=>Q[id]);
+  if(!w.length){view.innerHTML=`<div class="empty">오답이 없어요 👏<br>틀린 문제는 여기에 자동으로 모이고,<br>다시 풀어 맞히면 빠집니다.</div>`;return;}
+  const key="wrong";
+  view.innerHTML=`<p class="note">틀린 문제 ${w.length}개 · 다시 풀어 맞히면 오답 노트에서 빠집니다.</p><div class="list">`+
+    w.map((id,i)=>{const q=Q[id];return `<button class="li" data-i="${i}"><div class="ic p">P${q.part}</div><div class="tx"><b>${esc(q.test)} ${q.no}번 · ${esc(q.type)}</b><span>${esc(q.part===5?q.stem.replace(/-{3,}/g,"___"):q.stem)}</span></div><div class="chev">${IC.r}</div></button>`;}).join("")+`</div>`;
+  const start=i=>{const a=LS.get("ans",{});delete a[key];LS.set("ans",a);const S={key,ids:w.slice(),title:"오답 노트",label:`오답 다시 풀기 (${w.length}문항)`,i};go(()=>quiz(S));};
+  view.querySelectorAll("[data-i]").forEach(b=>b.onclick=()=>start(+b.dataset.i));
+  setBottom(`<button class="btn" id="redo">오답 ${w.length}문항 다시 풀기</button>`);$("redo").onclick=()=>start(0);
+}
+
+/* ---------------- 단어장 ---------------- */
+function toggleBm(w,m){const bm=LS.get("bm",{});const k=w.toLowerCase();let on;if(bm[k]){delete bm[k];on=false;}else{bm[k]=[w,m];on=true;}LS.set("bm",bm);return on;}
+function words(which,st){
+  st=st||{mode:LS.get("vmode","both"),only:false,open:{}};
+  const my=which==="my";const day=my?null:TEST(which);
+  frame(my?"나만의 단어장":day.name+" 단어장",{blue:true});
+  const bm=LS.get("bm",{});
+  let list=my?Object.values(bm):day.words;
+  if(st.only&&!my)list=list.filter(([w])=>bm[w.toLowerCase()]);
+  const tip=st.mode==="word"?"<br>· 빈칸을 터치하여 뜻을 확인해보세요.":st.mode==="mean"?"<br>· 빈칸을 터치하여 단어를 확인해보세요.":"";
+  let h=`<div class="tabs"><button class="tb ${st.mode==="both"?"on":""}" data-m="both">단어/뜻</button><button class="tb ${st.mode==="word"?"on":""}" data-m="word">단어만</button><button class="tb ${st.mode==="mean"?"on":""}" data-m="mean">뜻만</button>
+    ${my?"":`<button class="bmonly" id="only"><span class="mini ${st.only?"on":""}">${IC.bm}</span>북마크만 보기</button>`}</div>
+    <div class="info">· ${my?"단어 옆 북마크를 끄면 목록에서 빠집니다.":"북마크한 단어는 나만의 단어장에 저장됩니다."}${tip}</div>`;
+  if(!list.length)h+=`<div class="empty">${my?"아직 북마크한 단어가 없어요.<br>단어장이나 해설의 어휘에서 북마크해 보세요.":"북마크한 단어가 없어요."}</div>`;
+  h+=list.map(([w,m],i)=>{const on=!!bm[w.toLowerCase()];const p1=st.mode==="mean"?m:w,p2=st.mode==="mean"?w:m;
+    const show=st.mode==="both"||st.open[w];
+    return `<div class="wrow"><button class="big ${on?"on":""}" data-bm="${i}" aria-label="북마크">${IC.bm}</button>
+      <div class="body"><div class="p1 ${st.mode==="mean"?"k":""}">${esc(p1)}</div>${show?`<div class="p2" ${st.mode!=="both"?`data-hide="${i}"`:""}>${esc(p2)}</div>`:`<button class="hid" data-open="${i}">?</button>`}</div></div>`;}).join("");
+  view.innerHTML=h;
+  const re=()=>words(which,st);
+  view.querySelectorAll("[data-m]").forEach(b=>b.onclick=()=>{st.mode=b.dataset.m;st.open={};LS.set("vmode",st.mode);re();});
+  if($("only"))$("only").onclick=()=>{st.only=!st.only;re();};
+  view.querySelectorAll("[data-open]").forEach(b=>b.onclick=()=>{st.open[list[+b.dataset.open][0]]=true;re();});
+  view.querySelectorAll("[data-hide]").forEach(b=>b.onclick=()=>{delete st.open[list[+b.dataset.hide][0]];re();});
+  view.querySelectorAll("[data-bm]").forEach(b=>b.onclick=()=>{const [w,m]=list[+b.dataset.bm];const on=toggleBm(w,m);
+    if(my||st.only)re();else b.classList.toggle("on",on);});
+}
+
+/* ---------------- 통계 ---------------- */
+function stats(){
+  frame("학습 통계");
+  const st=LS.get("stats",{}),lg=LS.get("log",{});
+  let seen=0,corr=0,learned=0;const part={5:[0,0,0,0],6:[0,0,0,0],7:[0,0,0,0]};
+  DATA.bank.forEach(q=>{const p=part[q.part];p[3]++;const e=st[q.id];if(e){learned++;seen+=e.seen;corr+=e.correct;p[0]++;p[1]+=e.seen;p[2]+=e.correct;}});
+  let streak=0;for(let d=new Date();;d.setDate(d.getDate()-1)){const k=today(d);if(lg[k]?.n)streak++;else if(k!==today())break;else continue;}
+  const pct=(c,s)=>s?Math.round(c/s*100):0;
+  const days=[...Array(7)].map((_,i)=>{const d=new Date();d.setDate(d.getDate()-6+i);return {k:today(d),lab:["일","월","화","수","목","금","토"][d.getDay()]};});
+  const mx=Math.max(1,...days.map(d=>lg[d.k]?.n||0));
+  view.innerHTML=`<div class="kpis"><div class="kpi"><b>${pct(corr,seen)}%</b><span>누적 정답률</span></div><div class="kpi"><b>${learned}</b><span>학습한 문항</span></div><div class="kpi"><b>${streak}일</b><span>연속 학습</span></div></div>
+    <div class="sh">파트별</div>${[5,6,7].map(n=>{const p=part[n];return `<div class="prow"><div class="h"><b>Part ${n}</b><span>${p[1]?`정답률 ${pct(p[2],p[1])}% · `:""}학습 ${p[0]}/${p[3]}</span></div><div class="bar2"><i style="width:${pct(p[0],p[3])}%"></i></div></div>`;}).join("")}
+    <div class="sh">TEST별</div>${DATA.tests.map(t=>{const p=progress2(t.ids);return `<div class="prow"><div class="h"><b>${esc(t.name)}</b><span>${p.n?`최근 정답 ${p.c}/${p.n} · `:""}학습 ${p.n}/${t.ids.length}</span></div><div class="bar2"><i style="width:${pct(p.n,t.ids.length)}%"></i></div></div>`;}).join("")}
+    <div class="sh">최근 7일 풀이 수</div><div class="week">${days.map(d=>{const n=lg[d.k]?.n||0;return `<div class="d"><i class="${n?"":"z"}" style="height:${n?Math.max(8,n/mx*70):3}px" title="${n}문항"></i><span>${d.k===today()?"오늘":d.lab}</span></div>`;}).join("")}</div>
+    <p class="note">총 ${seen}회 풀이 · 막대는 학습 범위(풀어 본 문항 비율)입니다.</p>`;
+}
+
+/* ---------------- 설정 · 백업 ---------------- */
+function settings(){
+  frame("설정 · 백업");const n=dailyCount();
+  view.innerHTML=`<div class="sh">데일리 학습 문항 수</div><div class="opt">${[3,5,10].map(v=>`<button data-n="${v}" class="${v===n?"on":""}">${v}문항</button>`).join("")}</div>
+    <p class="note">내일 데일리부터 적용됩니다. 안 푼 문제·틀린 문제를 무작위로 먼저, 맞힌 문제는 맨 뒤로 보내 뽑습니다.</p>
+    <div class="sh">기록 백업</div><div class="list">
+      <button class="li" id="exp"><div class="ic">⬇️</div><div class="tx"><b>기록 내보내기</b><span>풀이·오답·북마크를 파일로 저장</span></div></button>
+      <button class="li" id="imp"><div class="ic">⬆️</div><div class="tx"><b>기록 불러오기</b><span>내보낸 파일로 복원 (기기 이동 시)</span></div></button>
+      <button class="li" id="rst"><div class="ic">🗑️</div><div class="tx"><b class="danger">기록 전체 초기화</b><span>이 기기의 학습 기록을 모두 지웁니다</span></div></button>
+    </div><input type="file" id="file" accept="application/json,.json" hidden>
+    <p class="note">기록은 이 기기·브라우저에만 저장됩니다. iPhone은 홈 화면에 추가해 사용하면 더 오래 보관됩니다.<br>앱 버전 ${APP_VERSION} · ${DATA.tests.length}개 TEST · 문제 ${DATA.bank.length}개 · 단어 ${DATA.tests.reduce((a,t)=>a+t.words.length,0)}개</p>`;
+  view.querySelectorAll("[data-n]").forEach(b=>b.onclick=()=>{LS.set("dailyN",+b.dataset.n);settings();toast("저장했어요");});
+  $("exp").onclick=()=>{const o={};for(let i=0;i<localStorage.length;i++){const k=localStorage.key(i);if(k.startsWith("toeic."))o[k]=localStorage.getItem(k);}
+    const blob=new Blob([JSON.stringify({app:"TOEIC",version:APP_VERSION,at:new Date().toISOString(),data:o})],{type:"application/json"});
+    const a=document.createElement("a");a.href=URL.createObjectURL(blob);a.download=`toeic-backup-${today()}.json`;document.body.appendChild(a);a.click();a.remove();toast("백업 파일을 저장했어요");};
+  $("imp").onclick=()=>$("file").click();
+  $("file").onchange=async e=>{const f=e.target.files[0];if(!f)return;try{const j=JSON.parse(await f.text());if(j.app!=="TOEIC"||!j.data)throw 0;
+      if(!(await ask("현재 기록을 백업 파일로 덮어쓸까요?","불러오기")))return;
+      Object.keys(localStorage).filter(k=>k.startsWith("toeic.")).forEach(k=>localStorage.removeItem(k));
+      Object.entries(j.data).forEach(([k,v])=>{if(k.startsWith("toeic."))localStorage.setItem(k,v);});toast("기록을 불러왔어요");}catch(err){toast("올바른 백업 파일이 아니에요");}e.target.value="";};
+  $("rst").onclick=async()=>{if(!(await ask("학습 기록을 모두 지울까요?\n(되돌릴 수 없습니다)","초기화")))return;
+    Object.keys(localStorage).filter(k=>k.startsWith("toeic.")).forEach(k=>localStorage.removeItem(k));toast("초기화했어요");};
+}
+
+go(home);
+if("serviceWorker" in navigator && location.protocol.startsWith("http")){
+  window.addEventListener("load",()=>navigator.serviceWorker.register("./sw.js").catch(()=>{}));
+}
+};   // __startApp 끝
+</script>
+<script>
+/* =========================================================================
+   비밀번호 잠금 — data/Tn.js 가 암호화되어 있으면(window.TOEIC_ENC) 여기서 풀어서 TOEIC_DATA 로 넘긴다.
+   · 암호화: AES-GCM 256 / 키 = PBKDF2-SHA256(비밀번호, SALT, ITER)  ※ 암호화도구.html 과 값이 같아야 함
+   · 처음 한 번 비밀번호를 넣으면 키를 localStorage "toeicKey" 에 저장 → 다음부터 바로 열림
+     (키 이름이 "toeic." 으로 시작하지 않으므로 백업·초기화 대상에서 빠진다)
+   · 암호화 안 된 Tn.js(TOEIC_DATA)도 그대로 함께 쓸 수 있다
+   ========================================================================= */
+(async()=>{
+  const SALT="toeic-app-salt-v1",ITER=310000,KEY="toeicKey";
+  const enc=window.TOEIC_ENC||[];
+  if(!enc.length)return window.__startApp();
+  const view=document.getElementById("view");
+  document.getElementById("back").style.visibility="hidden";
+  if(!window.crypto||!crypto.subtle){view.innerHTML=`<div class="empty">이 브라우저에서는 열 수 없어요.<br>(https 주소에서 열어 주세요)</div>`;return;}
+  const b64d=s=>Uint8Array.from(atob(s),c=>c.charCodeAt(0));
+  const b64e=u=>btoa(String.fromCharCode(...u));
+  async function derive(pw){
+    const base=await crypto.subtle.importKey("raw",new TextEncoder().encode(pw),"PBKDF2",false,["deriveBits"]);
+    return new Uint8Array(await crypto.subtle.deriveBits({name:"PBKDF2",salt:new TextEncoder().encode(SALT),iterations:ITER,hash:"SHA-256"},base,256));
+  }
+  async function open(raw){   // 전부 풀리면 true, 하나라도 실패하면 false(아무것도 넣지 않음)
+    try{
+      const k=await crypto.subtle.importKey("raw",raw,"AES-GCM",false,["decrypt"]),out=[];
+      for(const e of enc)out.push(JSON.parse(new TextDecoder().decode(await crypto.subtle.decrypt({name:"AES-GCM",iv:b64d(e.iv)},k,b64d(e.ct)))));
+      (window.TOEIC_DATA=window.TOEIC_DATA||[]).push(...out);return true;
+    }catch(err){return false;}
+  }
+  let saved=null;try{saved=localStorage.getItem(KEY);}catch(e){}
+  if(saved&&await open(b64d(saved)))return window.__startApp();
+  view.innerHTML=`<div class="lock"><div class="ic">🔒</div><h2>비밀번호를 입력하세요</h2>
+    <p>${saved?"비밀번호가 바뀌었어요. 새 비밀번호를 입력하세요.":"처음 한 번만 입력하면 이 기기에서는<br>다음부터 바로 열립니다."}</p>
+    <form id="lk"><input type="password" id="pw" autocomplete="current-password" placeholder="비밀번호">
+    <div class="err" id="err"></div><button class="btn" id="ok">열기</button></form></div>`;
+  const pw=document.getElementById("pw"),err=document.getElementById("err"),ok=document.getElementById("ok");
+  setTimeout(()=>pw.focus(),300);
+  document.getElementById("lk").onsubmit=async ev=>{
+    ev.preventDefault();if(!pw.value)return;
+    ok.disabled=true;ok.textContent="확인 중…";err.textContent="";
+    const raw=await derive(pw.value);
+    if(await open(raw)){try{localStorage.setItem(KEY,b64e(raw));}catch(e){}window.__startApp();}
+    else{err.textContent="비밀번호가 맞지 않아요";ok.disabled=false;ok.textContent="열기";pw.select();}
+  };
+})();
+</script>
+</body>
+</html>
